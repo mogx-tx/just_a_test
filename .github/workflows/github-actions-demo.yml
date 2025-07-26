@@ -29,7 +29,7 @@ jobs:
             PR_LINKS="https://github.com/${{ github.repository }}/pull/${{ github.event.issue.number }}"
             
             echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
-            echo "pr_links=$(jq -n --arg link "$PR_LINKS" '[$link]')" >> $GITHUB_OUTPUT
+            echo "pr_links=$(jq -n --arg link "$PR_LINKS"  --raw-output '[$link]')" >> $GITHUB_OUTPUT
           fi
            
           echo "Detected build type: $BUILD_TYPE"
