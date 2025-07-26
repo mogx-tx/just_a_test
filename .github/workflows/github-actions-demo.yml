@@ -24,7 +24,7 @@ jobs:
             BUILD_TYPE="multi-repo-build"
             
             echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
-            echo "pr_links=$(jq -R -n '[inputs]' <<< "$PR_LINKS")" >> $GITHUB_OUTPUT
+            echo "pr_links=$(jq -R -n --compact-output '[inputs]' <<< "$PR_LINKS")" >> $GITHUB_OUTPUT
           else
             # 单仓库构建：使用当前 PR
             BUILD_TYPE="single-repo-build"
