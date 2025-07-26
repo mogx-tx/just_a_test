@@ -34,36 +34,3 @@ jobs:
            
           echo "Detected build type: $BUILD_TYPE"
           echo "PR links: $PR_LINKS"
- 
-      # 步骤 2: 触发协调器
-      - name: Trigger Orchestrator
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.REPO_ORCHESTRATOR_TOKEN01 }}
-          script: |
-            # 获取 PR 链接数组
-            echo "aaa"
-            # const prLinks = JSON.parse('${{ steps.parse-request.outputs.pr_links }}');
-             
-            # 转换为协调器所需的格式
-            const repos = prLinks.map(link => {
-              const parts = link.split('/');
-              return {
-                owner: parts[3],
-                repo: parts[4],
-                pr: parseInt(parts[6])
-              };
-            });
-            
-            github.rest.repos.createDispatchEvent({
-              owner: 'molovexue',
-              repo: 'repo-orchestrator',
-              event_type: '${{ steps.parse-request.outputs.build_type }}',
-              client_payload: {
-                trigger_repo: context.repo.repo,
-                trigger_pr: context.payload.issue.number,
-                comment_id: context.payload.comment.id,
-                sender: context.payload.sender.login,
-                repos: repos
-              }
-            })
