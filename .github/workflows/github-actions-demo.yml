@@ -1,19 +1,4 @@
-#name: Github Actions Demo
-#run-name: ${{ github.actor }} is testing out GitHub Actions
-#on: [push, pull_request]
-#jobs:
-#  Explore-GitHub-Actions:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - run: echo "The job was automatically triggered by a ${{ github.event_name }} event."
-#      - name: Check out repository code
-#        uses: actions/checkout@v4
-#      - run: echo "The ${{ github.repository }} repository has been cloned to the runner."
-#      - name: List files in the repository
-#        run: |
-#          ls ${{ github.workspace }}
-
-name: PR Listener
+name: PR Orchestrator Trigger
  
 on:
   issue_comment:
@@ -21,22 +6,63 @@ on:
  
 jobs:
   trigger-orchestrator:
+    # 仅在 PR 评论中包含 "start build" 时触发
     if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, 'start build') }}
     runs-on: ubuntu-latest
+    
     steps:
+      # 步骤 1: 提取构建类型和 PR 链接
+      - name: Parse build request
+        id: parse-request
+        run: |
+          # 检查是否包含多仓库标识符
+          if echo '${{ github.event.comment.body }}' | grep -q 'multi-repo'; then
+            # 多仓库构建：提取所有 PR 链接
+            PR_LINKS=$(echo '${{ github.event.comment.body }}' | grep -o 'https://github.com/[^ ]*/pull/[0-9]*')
+            BUILD_TYPE="multi-repo-build"
+            
+            echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
+            echo "pr_links=$(jq -R -n '[inputs]' <<< "$PR_LINKS")" >> $GITHUB_OUTPUT
+          else
+            # 单仓库构建：使用当前 PR
+            BUILD_TYPE="single-repo-build"
+            PR_LINKS="https://github.com/${{ github.repository }}/pull/${{ github.event.issue.number }}"
+            
+            echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
+            echo "pr_links=$(jq -n --arg link "$PR_LINKS" '[$link]')" >> $GITHUB_OUTPUT
+          fi
+           
+          echo "Detected build type: $BUILD_TYPE"
+          echo "PR links: $PR_LINKS"
+ 
+      # 步骤 2: 触发协调器
       - name: Trigger Orchestrator
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.REPO_ORCHESTRATOR_TOKEN01 }}
           script: |
+            // 获取 PR 链接数组
+            const prLinks = JSON.parse('${{ steps.parse-request.outputs.pr_links }}');
+             
+            // 转换为协调器所需的格式
+            const repos = prLinks.map(link => {
+              const parts = link.split('/');
+              return {
+                owner: parts[3],
+                repo: parts[4],
+                pr: parseInt(parts[6])
+              };
+            });
+            
             github.rest.repos.createDispatchEvent({
               owner: 'molovexue',
               repo: 'repo-orchestrator',
-              event_type: 'single-repo-build',
+              event_type: '${{ steps.parse-request.outputs.build_type }}',
               client_payload: {
-                source_repo: context.repo.repo,
-                pr_number: context.payload.issue.number,
+                trigger_repo: context.repo.repo,
+                trigger_pr: context.payload.issue.number,
                 comment_id: context.payload.comment.id,
-                sender: context.payload.sender.login
+                sender: context.payload.sender.login,
+                repos: repos
               }
             })
