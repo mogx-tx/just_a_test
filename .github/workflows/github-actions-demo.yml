@@ -1,14 +1,41 @@
-name: Github Actions Demo
-run-name: ${{ github.actor }} is testing out GitHub Actions
-on: [push, pull_request]
+#name: Github Actions Demo
+#run-name: ${{ github.actor }} is testing out GitHub Actions
+#on: [push, pull_request]
+#jobs:
+#  Explore-GitHub-Actions:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - run: echo "The job was automatically triggered by a ${{ github.event_name }} event."
+#      - name: Check out repository code
+#        uses: actions/checkout@v4
+#      - run: echo "The ${{ github.repository }} repository has been cloned to the runner."
+#      - name: List files in the repository
+#        run: |
+#          ls ${{ github.workspace }}
+
+name: PR Listener
+ 
+on:
+  issue_comment:
+    types: [created]
+ 
 jobs:
-  Explore-GitHub-Actions:
+  trigger-orchestrator:
+    if: ${{ github.event.issue.pull_request && contains(github.event.comment.body, 'start build') }}
     runs-on: ubuntu-latest
     steps:
-      - run: echo "The job was automatically triggered by a ${{ github.event_name }} event."
-      - name: Check out repository code
-        uses: actions/checkout@v4
-      - run: echo "The ${{ github.repository }} repository has been cloned to the runner."
-      - name: List files in the repository
-        run: |
-          ls ${{ github.workspace }}
+      - name: Trigger Orchestrator
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.repos.createDispatchEvent({
+              owner: 'molovexue',
+              repo: 'repo-orchestrator',
+              event_type: 'single-repo-build',
+              client_payload: {
+                source_repo: context.repo.repo,
+                pr_number: context.payload.issue.number,
+                comment_id: context.payload.comment.id,
+                sender: context.payload.sender.login
+              }
+            })
