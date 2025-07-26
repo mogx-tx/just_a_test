@@ -42,6 +42,7 @@ jobs:
           github-token: ${{ secrets.REPO_ORCHESTRATOR_TOKEN01 }}
           script: |
             // 获取 PR 链接数组
+            echo "aaa"
             const prLinks = JSON.parse('${{ steps.parse-request.outputs.pr_links }}');
              
             // 转换为协调器所需的格式
