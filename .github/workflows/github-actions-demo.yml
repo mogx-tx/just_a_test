@@ -27,7 +27,7 @@ jobs:
       - name: Trigger Orchestrator
         uses: actions/github-script@v6
         with:
-          token: ${{ secrets.REPO_ORCHESTRATOR_TOKEN }}
+          github-token: ${{ secrets.REPO_ORCHESTRATOR_TOKEN }}
           script: |
             github.rest.repos.createDispatchEvent({
               owner: 'molovexue',
