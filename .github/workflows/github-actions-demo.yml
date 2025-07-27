@@ -15,7 +15,7 @@ jobs:
         (github.event.issue.state == 'open' && github.event.issue.active_lock_reason != 'too heated') ||
         (github.event.pull_request.state == 'open' && github.event.pull_request.mergeable)
       )
-     runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Determine build type
         id: build-type
