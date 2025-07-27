@@ -1,4 +1,4 @@
-name: PR Orchestrator Trigger
+name: PR Listener
  
 on:
   issue_comment:
@@ -8,63 +8,76 @@ on:
  
 jobs:
   trigger-orchestrator:
-    # 仅在 PR 评论中包含 "start build" 时触发
-    if: ${{ contains(github.event.comment.body, 'start build') }}
-    runs-on: ubuntu-latest
-    
+    # 检查：评论包含 "start build"，PR/Issue 开放且无冲突
+    if: |
+      contains(github.event.comment.body, 'start build') &&
+      (
+        (github.event.issue.state == 'open' && github.event.issue.active_lock_reason != 'too heated') ||
+        (github.event.pull_request.state == 'open' && github.event.pull_request.mergeable)
+      )
+     runs-on: ubuntu-latest
     steps:
-      # 步骤 1: 提取构建类型和 PR 链接
-      - name: Parse build request
-        id: parse-request
+      - name: Determine build type
+        id: build-type
         run: |
-          # 检查是否包含多仓库标识符
-          if echo '${{ github.event.comment.body }}' | grep -q 'multi-repo'; then
-            # 多仓库构建：提取所有 PR 链接
-            PR_LINKS=$(echo '${{ github.event.comment.body }}' | grep -o 'https://github.com/[^ ]*/pull/[0-9]*')
-            BUILD_TYPE="multi-repo-build"
-            
-            echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
-            echo "pr_links=$(jq -R -n --compact-output '[inputs]' <<< "$PR_LINKS")" >> $GITHUB_OUTPUT
+          # 检查是否包含多个PR链接
+          if echo '${{ github.event.comment.body }}' | grep -q 'https://github.com/.*/pull/'; then
+            echo "build_type=multi-repo-build" >> $GITHUB_OUTPUT
           else
-            # 单仓库构建：使用当前 PR
-            BUILD_TYPE="single-repo-build"
-            PR_LINKS="https://github.com/${{ github.repository }}/pull/${{ github.event.issue.number }}"
-            
-            echo "build_type=$BUILD_TYPE" >> $GITHUB_OUTPUT
-            echo "pr_links=$(jq -n --arg link "$PR_LINKS" --compact-output '[$link]')"  >> $GITHUB_OUTPUT
+            echo "build_type=single-repo-build" >> $GITHUB_OUTPUT
           fi
            
-          echo "Detected build type: $BUILD_TYPE"
-          echo "PR links: $PR_LINKS"
+          # 获取当前仓库信息
+          echo "source_repo=${{ github.repository }}" >> $GITHUB_OUTPUT
+          echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          echo "comment_id=${{ github.event.comment.id }}" >> $GITHUB_OUTPUT
+          echo "sender=${{ github.event.sender.login }}" >> $GITHUB_OUTPUT
  
-      # 步骤 2: 触发协调器
       - name: Trigger Orchestrator
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.REPO_ORCHESTRATOR_TOKEN01 }}
           script: |
-            // 获取 PR 链接数组
-            const prLinks = JSON.parse('${{ steps.parse-request.outputs.pr_links }}');
+            const buildType = '${{ steps.build-type.outputs.build_type }}';
+            const sourceRepo = '${{ steps.build-type.outputs.source_repo }}';
+            const prNumber = '${{ steps.build-type.outputs.pr_number }}';
+            const commentId = '${{ steps.build-type.outputs.comment_id }}';
+            const sender = '${{ steps.build-type.outputs.sender }}';
              
-            // 转换为协调器所需的格式
-            const repos = prLinks.map(link => {
-              const parts = link.split('/');
-              return {
-                owner: parts[3],
-                repo: parts[4],
-                pr: parseInt(parts[6])
-              };
-            });
+            // 对于多仓库构建，提取所有PR链接
+            let additionalPayload = {};
+            if (buildType === 'multi-repo-build') {
+              const commentBody = context.payload.comment.body;
+              const prLinks = commentBody.match(/https:\/\/github.com\/[^\/]+\/[^\/]+\/pull\/\d+/g) || [];
+              
+              additionalPayload.repos = prLinks.map(link => {
+                const parts = link.split('/');
+                return {
+                  owner: parts[3],
+                  repo: parts[4],
+                  pr: parseInt(parts[6])
+                };
+              });
+            } else {
+              // 单仓库构建：添加当前PR信息
+              const [owner, repo] = sourceRepo.split('/');
+              additionalPayload.repos = [{
+                owner,
+                repo,
+                pr: parseInt(prNumber)
+              }];
+            }
             
+            // 触发协调器
             github.rest.repos.createDispatchEvent({
               owner: 'molovexue',
               repo: 'repo-orchestrator',
-              event_type: '${{ steps.parse-request.outputs.build_type }}',
+              event_type: buildType,
               client_payload: {
-                trigger_repo: context.repo.repo,
-                trigger_pr: context.payload.issue.number,
-                comment_id: context.payload.comment.id,
-                sender: context.payload.sender.login,
-                repos: repos
+                source_repo: sourceRepo,
+                pr_number: prNumber,
+                comment_id: commentId,
+                sender: sender,
+                ...additionalPayload
               }
             })
