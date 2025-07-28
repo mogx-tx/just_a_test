@@ -36,7 +36,7 @@ jobs:
       - name: Trigger Orchestrator
         uses: actions/github-script@v6
         with:
-          # github-token: ${{ secrets.REPO_ORCHESTRATOR_TOKEN01 }}
+          github-token: ${{ secrets.REPO_ORCHESTRATOR_TOKEN01 }}
           script: |
             const buildType = '${{ steps.build-type.outputs.build_type }}';
             const sourceRepo = '${{ steps.build-type.outputs.source_repo }}';
