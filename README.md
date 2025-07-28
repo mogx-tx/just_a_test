@@ -49,7 +49,7 @@ start build
 
 （1）新建一个public仓库 `repo-orchestrator`
 
-（2）配置一个组织token，给于repo 权限，名称叫`REPO_ORCHESTRATOR_TOKEN01`
+（2）配置一个组织token，给于repo 权限，名称叫`REPO_ORCHESTRATOR_TOKEN01`， 设置一个 Actions Secrets and Variables  `REPO_ORCHESTRATOR_TOKEN01`
 
 （3）每个仓库的actions
 
